@@ -3,7 +3,7 @@ from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 LANGCHAIN_ENDPOINT = os.getenv("LANGCHAIN_API_ENDPOINT", "https://api.langchain.io")
-OLLAMA_ENDPOINT = os.getenv("OLLAMA_API_ENDPOINT", "http://localhost:8080")
+OLLAMA_ENDPOINT = os.getenv("OLLAMA_API_ENDPOINT", "http://localhost:11434")
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential())
 def langchain_scan(code):
