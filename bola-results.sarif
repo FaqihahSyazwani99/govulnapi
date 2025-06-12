@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "BOLA Scanner",
+          "rules": [
+            {
+              "id": "BOLA",
+              "name": "Broken Object Level Authorization",
+              "shortDescription": {
+                "text": "API1:2023 BOLA"
+              },
+              "fullDescription": {
+                "text": "Improper object-level access control in APIs."
+              },
+              "helpUri": "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/"
+            }
+          ]
+        }
+      },
+      "results": []
+    }
+  ]
+}
