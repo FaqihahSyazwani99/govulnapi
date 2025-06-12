@@ -73,6 +73,7 @@ jobs:
           fi
 
           echo "🎯 TARGET_FILES: $TARGET_FILES"
+          echo "📊 Number of files to scan: $(echo "$TARGET_FILES" | jq 'length')"
           echo "TARGET_FILES=$TARGET_FILES" >> $GITHUB_ENV
 
       - name: 🚡 Run Enhanced BOLA Scanner
