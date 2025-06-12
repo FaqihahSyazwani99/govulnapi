@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 15
     env:
       SCAN_DIR: 'src'
-      OLLAMA_ENDPOINT: ${{ secrets.OLLAMA_ENDPOINT || 'http://localhost:11434' }}
+      OLLAMA_ENDPOINT: ${{ secrets.OLLAMA_ENDPOINT || 'http://localhost:8080' }}
       LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
