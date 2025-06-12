@@ -44,12 +44,21 @@ def main():
     try:
         if not os.environ.get("LANGCHAIN_API_KEY"):
             raise ValueError("Missing LANGCHAIN_API_KEY environment variable")
+        
+        # ─── Parse TARGET_FILES ────────────────────────────────────────────────────
+        raw = os.environ.get("TARGET_FILES", "").strip()
+        if not raw:
+            print("⚠️ No files provided in TARGET_FILES.")
+            return
 
-        files = []
         try:
-            files = json.loads(os.environ.get("TARGET_FILES", "[]"))
-        except json.JSONDecodeError:
-            print("⚠️ Invalid JSON in TARGET_FILES environment variable")
+            # try JSON array first
+            files = json.loads(raw)
+            if not isinstance(files, list):
+                raise ValueError()
+        except Exception:
+            # fallback to space-separated list
+            files = raw.split()
 
         if not files:
             print("⚠️ No files provided in TARGET_FILES.")
@@ -72,8 +81,8 @@ def main():
                 continue
 
             lc_result = langchain_scan(code)
-            #ol_result = ollama_scan(code)
-            ol_result = {"info":"Ollama disabled in cloud run"} #Placeholder for Ollana scan
+            ol_result = ollama_scan(code)
+            #ol_result = {"info":"Ollama disabled in cloud run"} #Placeholder for Ollana scan
             results.append({"file": file, "langchain": lc_result, "ollama": ol_result})
 
             print(f"🔍 LangChain result for {file}:", json.dumps(lc_result, indent=2))
