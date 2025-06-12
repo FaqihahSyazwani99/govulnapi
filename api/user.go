@@ -27,7 +27,7 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		http.Error(w, "Invalid IDDD", http.StatusBadRequest)
 		return
 	}
 
