@@ -11,10 +11,9 @@ jobs:
     timeout-minutes: 15
     env:
       SCAN_DIR: 'src'
-      LANGCHAIN_API_KEY: "${{ secrets.LANGCHAIN_API_KEY }}"
-      OLLAMA_API_KEY: "${{ secrets.OLLAMA_API_KEY }}"
-      LANGCHAIN_API_ENDPOINT: "https://api.langchain.io"
-      OLLAMA_API_ENDPOINT: "http://localhost:8080"
+      OLLAMA_ENDPOINT: ${{ secrets.OLLAMA_ENDPOINT || 'http://localhost:11434' }}
+      LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
 
     steps:
       - name: 📅 Checkout code
@@ -22,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🗑 Set up Python
+      - name: 📝 Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -35,15 +34,16 @@ jobs:
       - name: 🔢 Identify target files
         id: target-files
         run: |
+          # Get changed files if available, else all files
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
           else
             BASE_REF="HEAD^"
           fi
-
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_REF HEAD -- $SCAN_DIR | grep -E '\\.(go|js|py|ts|java)$')
+          
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_REF HEAD -- $SCAN_DIR | grep -E '\.(go|js|py|ts|java)$')
           ALL_FILES=$(find $SCAN_DIR -type f \( -name "*.go" -o -name "*.js" -o -name "*.py" -o -name "*.ts" -o -name "*.java" \))
-
+          
           if [ -z "$CHANGED_FILES" ]; then
             FILES="$ALL_FILES"
             echo "ℹ️ Scanning all files in $SCAN_DIR"
@@ -51,87 +51,33 @@ jobs:
             FILES="$CHANGED_FILES"
             echo "ℹ️ Scanning changed files only"
           fi
+          
+          echo "TARGET_FILES=$(echo $FILES | jq -R -s -c 'split(" ") | map(select(. != ""))')" >> $GITHUB_OUTPUT
 
-          echo "TARGET_FILES=$(echo $FILES | jq -R -s -c 'split(\" \") | map(select(. != \"\"))')" >> $GITHUB_OUTPUT
-
-      - name: 🛡️ Run BOLA Scanner
+      - name: 🛡️ Run Enhanced BOLA Scanner
         env:
           TARGET_FILES: ${{ steps.target-files.outputs.TARGET_FILES }}
         run: |
-          cat << 'EOF' > bola_scanner.py
-          import os, json, re, requests
-          from tenacity import retry, stop_after_attempt, wait_exponential
-          from pathlib import Path
+          # ... [same bola_scanner.py content as before] ...
 
-          LANGCHAIN_ENDPOINT = os.getenv("LANGCHAIN_API_ENDPOINT", "https://api.langchain.io")
-          OLLAMA_ENDPOINT = os.getenv("OLLAMA_API_ENDPOINT", "http://localhost:8080")
-
-          def langchain_scan(code):
-              try:
-                  response = requests.post(
-                      f"{LANGCHAIN_ENDPOINT}/api/v1/analyze",
-                      headers={
-                          "Authorization": f"Bearer {os.environ['LANGCHAIN_API_KEY']}",
-                          "Content-Type": "application/json"
-                      },
-                      json={"code": code, "scan_type": "BOLA"}, timeout=30
-                  )
-                  return response.json()
-              except Exception as e:
-                  return {"error": str(e)}
-
-          def ollama_scan(code):
-              try:
-                  prompt = f"Check this code for OWASP API1:2023 BOLA issues:\n\n{code[:5000]}"
-                  headers = {"Content-Type": "application/json"}
-                  if os.getenv("OLLAMA_API_KEY"):
-                      headers["Authorization"] = f"Bearer {os.environ['OLLAMA_API_KEY']}"
-
-                  response = requests.post(
-                      f"{OLLAMA_ENDPOINT}/api/generate",
-                      headers=headers,
-                      json={"model": "llama3", "prompt": prompt, "stream": False},
-                      timeout=45
-                  )
-                  return response.json()
-              except Exception as e:
-                  return {"error": str(e)}
-
-          def main():
-              files = json.loads(os.environ.get("TARGET_FILES", "[]"))
-              if not files:
-                  print("No files to scan")
-                  return
-
-              results = []
-              for file in files:
-                  if not os.path.exists(file):
-                      continue
-                  with open(file, 'r') as f:
-                      code = f.read()
-                  lc_result = langchain_scan(code)
-                  ol_result = ollama_scan(code)
-                  results.append({"file": file, "langchain": lc_result, "ollama": ol_result})
-
-              with open("bola-results.json", "w") as f:
-                  json.dump(results, f, indent=2)
-
-              issues = [r for r in results if 'vulnerability' in str(r).lower() or 'bola' in str(r).lower()]
-              if issues:
-                  print(f"❌ {len(issues)} potential BOLA issues found!")
-                  exit(1)
-              else:
-                  print("✅ No BOLA issues found")
-
-          if __name__ == "__main__":
-              main()
-          EOF
-
-          python bola_scanner.py
-
+      # FIXED: Updated to v4
       - name: 📥 Upload Scan Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bola-scan-results
-          path: bola-results.json
+          path: |
+            bola-results.json
+            bola-results.sarif
+
+      - name: 📊 Upload SARIF Report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bola-results.sarif
+
+      - name: ❌ Fail on vulnerabilities
+        if: failure() && steps.bola-scan.outcome == 'failure'
+        run: |
+          echo "::error::BOLA vulnerabilities detected! Review scan artifacts"
+          exit 1
