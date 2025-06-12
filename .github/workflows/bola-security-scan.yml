@@ -30,26 +30,35 @@ jobs:
         #continue-on-error: true  # Prevent job from failing here
         run: |
           SCAN_DIR="."
+          echo "📁 Scanning directory: $SCAN_DIR"
+    
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
           else
             BASE_REF="HEAD^"
           fi
-          
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_REF HEAD -- "$SCAN_DIR" | grep -E '\\.(go|js|py|ts|java)$')
+    
+          echo "🔍 Comparing changes from $BASE_REF to HEAD"
+    
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_REF HEAD -- "$SCAN_DIR" | grep -E '\.(go|js|py|ts|java)$' || true)
+          echo "🧾 CHANGED_FILES: $CHANGED_FILES"
+    
           ALL_FILES=$(find "$SCAN_DIR" -type f \( -name "*.go" -o -name "*.js" -o -name "*.py" -o -name "*.ts" -o -name "*.java" \))
+          echo "📦 ALL_FILES:"
+          echo "$ALL_FILES"
 
           if [ -z "$CHANGED_FILES" ]; then
             FILES="$ALL_FILES"
-            echo "ℹ️ Scanning all files in $SCAN_DIR"
+            echo "ℹ️ No changed files, scanning ALL files."
           else
             FILES="$CHANGED_FILES"
-            echo "ℹ️ Scanning changed files only"
+            echo "ℹ️ Scanning only CHANGED files."
           fi
 
           TARGET_FILES=$(printf '%s\n' $FILES | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "🎯 TARGET_FILES: $TARGET_FILES"
           echo "TARGET_FILES=$TARGET_FILES" >> $GITHUB_ENV
-
+          
       - name: 🚡 Run Enhanced BOLA Scanner
         env:
           TARGET_FILES: ${{ env.TARGET_FILES }}
