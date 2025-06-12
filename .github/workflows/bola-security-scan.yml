@@ -28,13 +28,13 @@ jobs:
 
       - name: 🔢 Identify target files
         run: |
-          SCAN_DIR="src"
+          SCAN_DIR="api"
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
           else
             BASE_REF="HEAD^"
           fi
-
+          
           CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_REF HEAD -- "$SCAN_DIR" | grep -E '\\.(go|js|py|ts|java)$')
           ALL_FILES=$(find "$SCAN_DIR" -type f \( -name "*.go" -o -name "*.js" -o -name "*.py" -o -name "*.ts" -o -name "*.java" \))
 
