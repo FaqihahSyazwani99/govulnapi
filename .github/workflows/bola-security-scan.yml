@@ -32,7 +32,6 @@ jobs:
           pip install requests tenacity
 
       - name: 🔢 Identify target files
-        id: target-files
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
@@ -51,11 +50,12 @@ jobs:
             echo "ℹ️ Scanning changed files only"
           fi
 
-          echo "TARGET_FILES=$(echo $FILES | jq -R -s -c 'split(" ") | map(select(. != ""))')" >> $GITHUB_OUTPUT
+          TARGET_FILES=$(printf '%s\n' $FILES | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "TARGET_FILES=$TARGET_FILES" >> $GITHUB_ENV
 
       - name: 🛡️ Run Enhanced BOLA Scanner
         env:
-          TARGET_FILES: ${{ steps.target-files.outputs.TARGET_FILES }}
+          TARGET_FILES: ${{ env.TARGET_FILES }}
         run: |
           cat << 'EOF' > bola_scanner.py
           import os, json, requests
@@ -101,6 +101,7 @@ jobs:
 
           def main():
               files = json.loads(os.environ.get("TARGET_FILES", "[]"))
+              print(f"🧪 Files to scan: {files}")
               results = []
               vulnerabilities = []
 
@@ -164,7 +165,7 @@ jobs:
                   print(f"❌ Found {len(vulnerabilities)} vulnerabilities")
                   exit(1)
               else:
-                  print("✅ No BOLA issues found")
+                  print("✅ No BOLA vulnerabilities found")
 
           if __name__ == "__main__":
               main()
