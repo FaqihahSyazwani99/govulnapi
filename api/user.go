@@ -38,5 +38,5 @@ func GetUserByID(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	http.Error(w, "User not found", http.StatusNotFound)
+	http.Error(w, "User not founddd", http.StatusNotFound)
 }
