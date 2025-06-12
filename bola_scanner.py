@@ -17,6 +17,7 @@ def langchain_scan(code):
             json={"code": code, "scan_type": "BOLA"},
             timeout=30
         )
+        response.raise_for_status()
         return response.json()
     except Exception as e:
         return {"error": str(e)}
@@ -34,40 +35,94 @@ def ollama_scan(code):
             json={"model": "llama3", "prompt": prompt, "stream": False},
             timeout=45
         )
+        response.raise_for_status()
         return response.json()
     except Exception as e:
         return {"error": str(e)}
 
 def main():
     try:
-        files = json.loads(os.environ.get("TARGET_FILES", "[]"))
+        # Validate API keys
+        if not os.environ.get("LANGCHAIN_API_KEY"):
+            raise ValueError("Missing LANGCHAIN_API_KEY environment variable")
+        
+        # Parse target files
+        files = []
+        try:
+            files = json.loads(os.environ.get("TARGET_FILES", "[]"))
+        except json.JSONDecodeError:
+            print("⚠️ Invalid JSON in TARGET_FILES environment variable")
+        
         if not files:
             print("⚠️ No files provided in TARGET_FILES.")
             return
 
         results = []
         vulnerabilities = []
+        scan_errors = []
 
         for file in files:
             if not os.path.exists(file):
+                scan_errors.append(f"File not found: {file}")
                 continue
-            with open(file, 'r') as f:
-                code = f.read()
+                
+            try:
+                with open(file, 'r') as f:
+                    code = f.read()
+            except Exception as e:
+                scan_errors.append(f"Error reading {file}: {str(e)}")
+                continue
 
+            # Perform scans
             lc_result = langchain_scan(code)
             ol_result = ollama_scan(code)
-            result = {"file": file, "langchain": lc_result, "ollama": ol_result}
-            results.append(result)
+            results.append({"file": file, "langchain": lc_result, "ollama": ol_result})
 
-            for response in [lc_result, ol_result]:
-                vulns = response.get("vulnerabilities") or response.get("bola_vulnerabilities")
-                if vulns:
-                    for vuln in vulns:
-                        vuln["file"] = file
-                        vulnerabilities.append(vuln)
+            # Process LangChain results
+            if "error" not in lc_result:
+                vulns = lc_result.get("vulnerabilities") or lc_result.get("bola_vulnerabilities") or []
+                for vuln in vulns:
+                    if isinstance(vuln, dict):
+                        vulnerabilities.append({
+                            "file": file,
+                            "line": vuln.get("line", 1),
+                            "severity": vuln.get("severity", "warning"),
+                            "description": vuln.get("description", "BOLA vulnerability detected")
+                        })
 
+            # Process Ollama results
+            if "error" not in ol_result:
+                response_text = ol_result.get("response", "")
+                if "BOLA" in response_text or "Broken Object" in response_text:
+                    vulnerabilities.append({
+                        "file": file,
+                        "line": 1,  # LLMs don't provide line numbers
+                        "severity": "warning",
+                        "description": "Potential BOLA vulnerability detected by AI model"
+                    })
+
+        # Save raw results
         with open("bola-results.json", "w") as f:
-            json.dump(results, f, indent=2)
+            json.dump({"results": results, "errors": scan_errors}, f, indent=2)
+
+        # Generate SARIF report
+        sarif_results = []
+        for vuln in vulnerabilities:
+            sarif_results.append({
+                "ruleId": "BOLA",
+                "level": vuln["severity"],
+                "message": {"text": vuln["description"]},
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": vuln["file"]},
+                        "region": {
+                            "startLine": vuln["line"],
+                            "startColumn": 1,
+                            "endColumn": 1
+                        }
+                    }
+                }]
+            })
 
         sarif = {
             "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
@@ -76,40 +131,35 @@ def main():
                 "tool": {
                     "driver": {
                         "name": "BOLA Scanner",
+                        "informationUri": "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/",
                         "rules": [{
                             "id": "BOLA",
                             "name": "Broken Object Level Authorization",
                             "shortDescription": {"text": "API1:2023 BOLA"},
                             "fullDescription": {"text": "Improper object-level access control in APIs."},
-                            "helpUri": "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/"
+                            "helpUri": "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/",
+                            "properties": {"category": "security"}
                         }]
                     }
                 },
-                "results": [
-                    {
-                        "ruleId": "BOLA",
-                        "level": vuln.get("severity", "warning"),
-                        "message": {"text": vuln.get("description", "BOLA issue detected.")},
-                        "locations": [{
-                            "physicalLocation": {
-                                "artifactLocation": {"uri": vuln.get("file")},
-                                "region": {"startLine": vuln.get("line", 1)}
-                            }
-                        }]
-                    }
-                    for vuln in vulnerabilities
-                ]
+                "results": sarif_results
             }]
         }
 
         with open("bola-results.sarif", "w") as f:
             json.dump(sarif, f, indent=2)
 
+        # Print summary
+        if scan_errors:
+            print("\n⛔️ Scan errors:")
+            for error in scan_errors:
+                print(f"  - {error}")
+                
         if vulnerabilities:
-            print(f"❌ Found {len(vulnerabilities)} BOLA vulnerabilities.")
+            print(f"\n❌ Found {len(vulnerabilities)} BOLA vulnerabilities")
             exit(1)
         else:
-            print("✅ No BOLA vulnerabilities found.")
+            print("\n✅ No BOLA vulnerabilities found")
 
     except Exception as e:
         print(f"❌ Fatal error: {e}")
