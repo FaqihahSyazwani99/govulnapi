@@ -27,26 +27,36 @@ jobs:
           pip install requests tenacity jq
 
       - name: 🔢 Identify target files
-        #continue-on-error: true  # Prevent job from failing here
         run: |
           SCAN_DIR="."
           echo "📁 Scanning directory: $SCAN_DIR"
-    
+
+          # Handle pull request vs push events correctly
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
           else
-            BASE_REF="HEAD^"
+            # Handle first commit scenario where HEAD^ doesn't exist
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              BASE_REF="HEAD^"
+            else
+              BASE_REF="$(git rev-list --max-parents=0 HEAD)"  # Get initial commit
+            fi
           fi
-    
+
           echo "🔍 Comparing changes from $BASE_REF to HEAD"
-    
-          CHANGED_FILES=$(git diff --name-only --diff-filter=AM $BASE_REF HEAD -- "$SCAN_DIR" | grep -E '\.(go|js|py|ts|java)$' || true)
-          echo "🧾 CHANGED_FILES: $CHANGED_FILES"
-    
-          ALL_FILES=$(find "$SCAN_DIR" -type f \( -name "*.go" -o -name "*.js" -o -name "*.py" -o -name "*.ts" -o -name "*.java" \))
+
+          # Get changed files
+          CHANGED_FILES_RAW=$(git diff --name-only --diff-filter=AM "$BASE_REF" HEAD -- "$SCAN_DIR" || echo "")
+          CHANGED_FILES=$(echo "$CHANGED_FILES_RAW" | grep -E '\.(go|js|py|ts|java)$' || echo "")
+          echo "🧾 CHANGED_FILES:"
+          echo "$CHANGED_FILES"
+
+          # Get all matching files
+          ALL_FILES=$(find "$SCAN_DIR" -type f \( -name "*.go" -o -name "*.js" -o -name "*.py" -o -name "*.ts" -o -name "*.java" \) -print0 | xargs -0 echo || echo "")
           echo "📦 ALL_FILES:"
           echo "$ALL_FILES"
 
+          # Choose which files to scan
           if [ -z "$CHANGED_FILES" ]; then
             FILES="$ALL_FILES"
             echo "ℹ️ No changed files, scanning ALL files."
@@ -55,10 +65,16 @@ jobs:
             echo "ℹ️ Scanning only CHANGED files."
           fi
 
-          TARGET_FILES=$(printf '%s\n' $FILES | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          # Convert to JSON array
+          if [ -z "$FILES" ]; then
+            TARGET_FILES="[]"
+          else
+            TARGET_FILES=$(echo "$FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
           echo "🎯 TARGET_FILES: $TARGET_FILES"
           echo "TARGET_FILES=$TARGET_FILES" >> $GITHUB_ENV
-          
+
       - name: 🚡 Run Enhanced BOLA Scanner
         env:
           TARGET_FILES: ${{ env.TARGET_FILES }}
