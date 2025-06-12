@@ -79,10 +79,10 @@ jobs:
       - name: 🚡 Run Enhanced BOLA Scanner
         env:
           TARGET_FILES: ${{ env.TARGET_FILES }}
-          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY  }}
           LANGCHAIN_API_ENDPOINT: ${{ secrets.LANGCHAIN_API_ENDPOINT || 'https://api.langchain.io'}}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY  }}
           OLLAMA_ENDPOINT: ${{ secrets.OLLAMA_ENDPOINT || 'http://localhost:8080'}}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
           ENABLE_OLLAMA: "true"
         run: |
           python .github/workflows/bola_scanner.py
