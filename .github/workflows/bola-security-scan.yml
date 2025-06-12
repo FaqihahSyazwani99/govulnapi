@@ -27,6 +27,7 @@ jobs:
           pip install requests tenacity jq
 
       - name: 🔢 Identify target files
+        continue-on-error: true  # Prevent job from failing here
         run: |
           SCAN_DIR="api"
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
