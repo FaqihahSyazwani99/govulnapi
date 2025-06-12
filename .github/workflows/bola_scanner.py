@@ -72,7 +72,8 @@ def main():
                 continue
 
             lc_result = langchain_scan(code)
-            ol_result = ollama_scan(code)
+            #ol_result = ollama_scan(code)
+            ol_result = {"info":"Ollama disabled in cloud run"} #Placeholder for Ollana scan
             results.append({"file": file, "langchain": lc_result, "ollama": ol_result})
 
             print(f"🔍 LangChain result for {file}:", json.dumps(lc_result, indent=2))
