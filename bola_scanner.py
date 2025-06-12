@@ -42,17 +42,15 @@ def ollama_scan(code):
 
 def main():
     try:
-        # Validate API keys
         if not os.environ.get("LANGCHAIN_API_KEY"):
             raise ValueError("Missing LANGCHAIN_API_KEY environment variable")
-        
-        # Parse target files
+
         files = []
         try:
             files = json.loads(os.environ.get("TARGET_FILES", "[]"))
         except json.JSONDecodeError:
             print("⚠️ Invalid JSON in TARGET_FILES environment variable")
-        
+
         if not files:
             print("⚠️ No files provided in TARGET_FILES.")
             return
@@ -65,7 +63,7 @@ def main():
             if not os.path.exists(file):
                 scan_errors.append(f"File not found: {file}")
                 continue
-                
+
             try:
                 with open(file, 'r') as f:
                     code = f.read()
@@ -73,12 +71,13 @@ def main():
                 scan_errors.append(f"Error reading {file}: {str(e)}")
                 continue
 
-            # Perform scans
             lc_result = langchain_scan(code)
             ol_result = ollama_scan(code)
             results.append({"file": file, "langchain": lc_result, "ollama": ol_result})
 
-            # Process LangChain results
+            print(f"🔍 LangChain result for {file}:", json.dumps(lc_result, indent=2))
+            print(f"🤖 Ollama result for {file}:", json.dumps(ol_result, indent=2))
+
             if "error" not in lc_result:
                 vulns = lc_result.get("vulnerabilities") or lc_result.get("bola_vulnerabilities") or []
                 for vuln in vulns:
@@ -90,22 +89,21 @@ def main():
                             "description": vuln.get("description", "BOLA vulnerability detected")
                         })
 
-            # Process Ollama results
             if "error" not in ol_result:
                 response_text = ol_result.get("response", "")
                 if "BOLA" in response_text or "Broken Object" in response_text:
                     vulnerabilities.append({
                         "file": file,
-                        "line": 1,  # LLMs don't provide line numbers
+                        "line": 1,
                         "severity": "warning",
                         "description": "Potential BOLA vulnerability detected by AI model"
                     })
 
-        # Save raw results
         with open("bola-results.json", "w") as f:
             json.dump({"results": results, "errors": scan_errors}, f, indent=2)
 
-        # Generate SARIF report
+        print(f"🧠 Extracted vulnerabilities: {json.dumps(vulnerabilities, indent=2)}")
+
         sarif_results = []
         for vuln in vulnerabilities:
             sarif_results.append({
@@ -149,12 +147,11 @@ def main():
         with open("bola-results.sarif", "w") as f:
             json.dump(sarif, f, indent=2)
 
-        # Print summary
         if scan_errors:
             print("\n⛔️ Scan errors:")
             for error in scan_errors:
                 print(f"  - {error}")
-                
+
         if vulnerabilities:
             print(f"\n❌ Found {len(vulnerabilities)} BOLA vulnerabilities")
             exit(1)
