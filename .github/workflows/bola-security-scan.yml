@@ -131,7 +131,7 @@ jobs:
 
       - name: 📥 Upload Scan Results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: bola-scan-results
           path: bola-results.json
