@@ -17,7 +17,7 @@ type User struct {
 // ✅ Dummy user list
 var users = []User{
 	{ID: 1, Email: "alice@example.com"},
-	{ID: 2, Email: "bob@example.com"},
+	{ID: 2, Email: "bob@example.commm"},
 }
 
 // 🔓 BOLA vulnerability example
